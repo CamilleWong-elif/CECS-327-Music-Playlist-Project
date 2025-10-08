@@ -1,8 +1,8 @@
 from client import Client
 
 def main():
-    play_song = "default song"
-
+    play_song = "Take Down"
+    subscribed_artists = ["Taylor Swift, Sorry Ghost"]
 
     # print list of songs
     print("1. Cruel Summer - Taylor Swift\n" \
@@ -14,5 +14,7 @@ def main():
         "7. How It's Done - HUNTRX\n")
 
     # get input song from user
-    print("Which song do you want to play?: ", play_song)
+    input(print("Which song do you want to play?: ", play_song))
+
+    Client(play_song, subscribed_artists)
     
