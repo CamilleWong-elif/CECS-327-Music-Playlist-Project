@@ -1,4 +1,6 @@
 from client import Client
+from server import Server
+from notifications import Notifications
 
 def main():
     play_song = "Take Down"
@@ -14,7 +16,26 @@ def main():
         "7. How It's Done - HUNTRX\n")
 
     # get input song from user
-    input(print("Which song do you want to play?: ", play_song))
-
-    Client(play_song, subscribed_artists)
+    play_song = input("Which song do you want to play?: ")
     
+    # set fav_artist_list parameter for Client class
+    subscribed_artists = ["Taylor Swift", "Sorry Ghost"]
+    client = Client(fav_artist_list=subscribed_artists)#play_song, subscribed_artists)
+    
+    #-----connect to server --> claudia and josh
+    server = Server()
+    server.start() #---> replace the name with whatever server start() func yall have
+
+    #----receive notifications --> Ren and Helen part
+    notifications = Notifications(server)
+    notifications.add_subscriber(client)#---> replace add_subscriber w the actual func name yall use
+
+    # send song request
+    client.song_request(play_song)
+
+    # client receive notifcations of publish-subscribe
+    client.receive_notification(subscribed_artists)
+
+if __name__ == "main":
+    main()
+
