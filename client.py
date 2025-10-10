@@ -34,7 +34,35 @@ class Client:
        """
        try:
             self.connection = pika.BlockingConnection(pika.ConnectionParameters("localhost"))
-            
+            self.channel = self.connection.channel()
+
+            # declare a fanout exchange for artist notifications
+            self.channel.exchange_declare(exchange="artist_updates", exchange_type="fanout")
+
+            # create a temp queue for this client
+            result = self.channel.queue_declare(queue="", exclusive=True)
+            queue_name = result.method.queue
+
+            # bind to the exchange for each fav artist
+            for artist in self.subscription:
+                routing_key = f"artist.{artist}"
+                self.channel.queue_bind(exchange="artist_updates", queue=queue_name, routing_key=routing_key)
+
+            print("subscribed to artist updates:", self.subscription)
+
+            # start consuming messages
+            def callback(ch, method, properties, body):
+                print(f"\n🎵 notification: {body.decode('utf-8')}")
+
+            self.channel.basic_consume(queue=queue_name, on_message_callback=callback, auto_ack=True)
+
+            # run listener on a separate thread so the client can still send requests
+            threading.Thread(target=self.channel.start_consuming, daemon=True).start()
+
+       except pika.exceptions.AMQPConnectionError:
+            print("Error: Could not connect to RabbitMQ. Is it running?")
+       except Exception as e:
+            print(f"RabbitMQ setup error: {e}")
 
     def close(self):
         """close open connections"""
