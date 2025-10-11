@@ -64,6 +64,7 @@
 
 
 ### Pub-Sub Flow
+```
                        PUBLISHER (Notifications)
                        --------------------------------
                        | connects to RabbitMQ         |
@@ -95,3 +96,4 @@
 |  CLIENT A (Subscriber)                                  |  CLIENT B (Subscriber)|
 |  receives: "New album!"                                 |  receives: (nothing)  |
 +---------------------+                                   +----------------------+
+```
