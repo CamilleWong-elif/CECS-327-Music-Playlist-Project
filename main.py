@@ -25,6 +25,7 @@ def main():
     #-----connect to server --> claudia and josh
     server = Server()
     server.start() #---> replace the name with whatever server start() func yall have
+    #--> some func to connect to Client() and Notifications()
 
     #----receive notifications --> Ren and Helen part
     notifications = Notifications()
