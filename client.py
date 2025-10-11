@@ -3,13 +3,15 @@ import threading
 import pika #RabbitMQ
 
 class Client:
-    def __init__(self, server_host="localhost", server_port=5000, fav_artist_list = None):
+    def __init__(self, server_host="localhost", server_port=5001, fav_artist_list = None, broker_host = "localhost"):
         #self.song = "song name"
         self.subscription = [] # list of fav artists client is subscribed to
         self.server_host = server_host
         self.server_port = server_port
         self.connection = None
         self.channel = None
+        for artist in fav_artist_list:
+            self.subscription.append(artist) 
 
     def song_request(self, input_song):
         """
@@ -36,8 +38,8 @@ class Client:
             self.connection = pika.BlockingConnection(pika.ConnectionParameters("localhost"))
             self.channel = self.connection.channel()
 
-            # declare a fanout exchange for artist notifications
-            self.channel.exchange_declare(exchange="artist_updates", exchange_type="fanout")
+            # declare a topic exchange for artist notifications
+            self.channel.exchange_declare(exchange="artist_update", exchange_type="topic")
 
             # create a temp queue for this client
             result = self.channel.queue_declare(queue="", exclusive=True)
@@ -46,9 +48,9 @@ class Client:
             # bind to the exchange for each fav artist
             for artist in self.subscription:
                 routing_key = f"artist.{artist}"
-                self.channel.queue_bind(exchange="artist_updates", queue=queue_name, routing_key=routing_key)
+                self.channel.queue_bind(exchange="artist_update", queue=queue_name, routing_key=routing_key)
 
-            print("subscribed to artist updates:", self.subscription)
+            print("\nSubscribed to artist updates:", self.subscription, "\n")
 
             # start consuming messages
             def callback(ch, method, properties, body):
