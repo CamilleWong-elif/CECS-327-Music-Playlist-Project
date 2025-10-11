@@ -27,8 +27,8 @@ def main():
     server.start() #---> replace the name with whatever server start() func yall have
 
     #----receive notifications --> Ren and Helen part
-    notifications = Notifications(server)
-    notifications.add_subscriber(client)#---> replace add_subscriber w the actual func name yall use
+    notifications = Notifications()
+    notifications.publish_update("Taylor Swift", "New album released") #-->parameters: (artist_name, output_notification)
 
     # send song request
     client.song_request(play_song)
