@@ -1,6 +1,6 @@
 # CECS-327-Music-Playlist-Project
 ### Architecture Layout:  
-
+```
 +-----------------------+             TCP (request/response)           +---------------------+
 |        Client         |  ----------------------------------------->  |        Server       |
 | - song_request(song)  |  <-----------------------------------------  | - start() listen    |
@@ -18,14 +18,14 @@
       |  - publishes events like  |     "artist.Taylor_Swift"             |  (topic: artist_*) |
       |    artist.Taylor_Swift    |                                       +--------------------+
       +---------------------------+
-
+```
 - Server handles socket requests (play a song) and may also trigger notification publishing (e.g., “now playing Artist A”).
 
 - Notifications is a producer that publishes messages to RabbitMQ using routing keys per artist.
 
 - Client is a consumer that binds to the artists it cares about and receives events asynchronously.
 
-
+```
 +------------------+           +-------------------+          +------------------+
 |   Notifications  |           |                   |          |      Client      |
 | (Publisher app)  |  ----->   |   RabbitMQ Broker |  ----->  | (Subscriber app) |
@@ -39,7 +39,7 @@
                                  |   Server  |
                                  | (optional)|
                                  +-----------+
-
+```
 ### Components
 #### 1. Publisher (your Notifications class)
 - Connects to RabbitMQ.
