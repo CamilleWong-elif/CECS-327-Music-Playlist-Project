@@ -30,34 +30,31 @@ class Client:
 
     def receive_notification(self, fav_artist_list):
        """
-       connect to RabbitMQ and subscribe to favorite artist updates
+       subscribe to RabbitMQ queue to receive updates
        """
        try:
-            self.connection = pika.BlockingConnection(pika.ConnectionParameters("localhost"))
-            self.channel = self.connection.channel()
+            connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
+            channel = connection.channel()
 
-            # declare a fanout exchange for artist notifications
-            self.channel.exchange_declare(exchange="artist_updates", exchange_type="fanout")
+            channel.exchange_declare(exchange='artist_updates', exchange_type='topic')
 
-            # create a temp queue for this client
-            result = self.channel.queue_declare(queue="", exclusive=True)
+            # create a unique queue for this client
+            result = channel.queue_declare(queue='', exclusive=True)
             queue_name = result.method.queue
 
-            # bind to the exchange for each fav artist
-            for artist in self.subscription:
-                routing_key = f"artist.{artist}"
-                self.channel.queue_bind(exchange="artist_updates", queue=queue_name, routing_key=routing_key)
+            # bind queue for each artist in list
+            for artist in self.fav_artist_list:
+                routing_key = f"artist.{artist.replace(' ', '_')}"
+                channel.queue_bind(exchange='artist_updates', queue=queue_name, routing_key=routing_key)
+                print(f"[CLIENT] subscribed to updates from {artist}")
 
-            print("subscribed to artist updates:", self.subscription)
-
-            # start consuming messages
+            # when msg arrives, RabbitMQ uses this function to pass in output
             def callback(ch, method, properties, body):
-                print(f"\n🎵 notification: {body.decode('utf-8')}")
+                print(f"[NOTIFICATION]: {body.decode()}")
 
-            self.channel.basic_consume(queue=queue_name, on_message_callback=callback, auto_ack=True)
-
-            # run listener on a separate thread so the client can still send requests
-            threading.Thread(target=self.channel.start_consuming, daemon=True).start()
+            channel.basic_consume(queue=queue_name, on_message_callback=callback, auto_ack=True)
+            print("[CLIENT] waiting for notifs...")
+            channel.start_consuming()
 
        except pika.exceptions.AMQPConnectionError:
             print("Error: Could not connect to RabbitMQ. Is it running?")
