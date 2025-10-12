@@ -1,42 +1,46 @@
 from client import Client
 from server import Server
 from notifications import Notifications
+import pika  # for catching AMQP errors
+
+SONGS = [
+    "Cruel Summer - Taylor Swift",
+    "Box Breathing - Sorry Ghost",
+    "Lover - Taylor Swift",
+    "Golden - HUNTRX",
+    "To The Creatures - Sorry Ghost",
+    "Take Down - HUNTRX",
+    "How It's Done - HUNTRX",
+]
 
 def main():
-    play_song = "Take Down"
-    subscribed_artists = ["Taylor Swift, Sorry Ghost"]
+    # menu
+    for i, s in enumerate(SONGS, 1):
+        print(f"{i}. {s}")
+    choice = input("\nWhich song do you want to play?: ").strip()
+    song = SONGS[int(choice)-1] if choice.isdigit() and 1 <= int(choice) <= len(SONGS) else choice
 
-    # print list of songs
-    print("1. Cruel Summer - Taylor Swift\n" \
-        "2. Box Breathing - Sorry Ghost\n" \
-        "3. Lover - Taylor Swift\n" \
-        "4. Golden - HUNTRX\n" \
-        "5. To The Creatures - Sorry Ghost\n" \
-        "6. Take Down - HUNTRX\n" \
-        "7. How It's Done - HUNTRX\n")
+    # start server
+    server = Server(port=5001)
+    server.start()
 
-    # get input song from user
-    play_song = input("Which song do you want to play?: ")
-    
-    # set fav_artist_list parameter for Client class
+    # create client + start consuming first (so we can see the published events)
     subscribed_artists = ["Taylor Swift", "Sorry Ghost"]
-    client = Client(fav_artist_list=subscribed_artists)#play_song, subscribed_artists)
-    
-    #-----connect to server --> claudia and josh
-    server = Server()
-    server.start() #---> replace the name with whatever server start() func yall have
-    #--> some func to connect to Client() and Notifications()
+    client = Client(server_host="localhost", server_port=5001, fav_artist_list=subscribed_artists)
+    client.receive_notification(client.subscription)
 
-    #----receive notifications --> Ren and Helen part
-    notifications = Notifications()
-    notifications.publish_update("Taylor Swift", "New album released") #-->parameters: (artist_name, output_notification)
+    # try to publish artist updates (skip if RabbitMQ not running)
+    try:
+        notifications = Notifications("localhost")
+        print("Publishing artist updates...")
+        notifications.publish_artist_message("Taylor Swift", "New album released!")
+        notifications.publish_artist_message("Sorry Ghost", "New single out now!")
+        notifications.publish_artist_message("HUNTRX", "On tour this summer!")
+    except pika.exceptions.AMQPConnectionError as e:
+        print(f"(Skipping publish — RabbitMQ not available: {e})")
 
-    # send song request
-    client.song_request(play_song)
+    # send the actual song request via IPC socket
+    client.song_request(song)
 
-    # client receive notifcations of publish-subscribe
-    client.receive_notification(subscribed_artists)
-
-if __name__ == "main":
+if __name__ == "__main__":
     main()
-
