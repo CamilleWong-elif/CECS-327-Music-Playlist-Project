@@ -3,13 +3,15 @@ import threading
 import pika #RabbitMQ
 
 class Client:
-    def __init__(self, server_host="localhost", server_port=5000, fav_artist_list = None):
+    def __init__(self, server_host="localhost", server_port=5001, fav_artist_list = None, broker_host = "localhost"):
         #self.song = "song name"
         self.subscription = [] # list of fav artists client is subscribed to
         self.server_host = server_host
         self.server_port = server_port
         self.connection = None
         self.channel = None
+        for artist in fav_artist_list:
+            self.subscription.append(artist) 
 
     def song_request(self, input_song):
         """
@@ -30,31 +32,34 @@ class Client:
 
     def receive_notification(self, fav_artist_list):
        """
-       subscribe to RabbitMQ queue to receive updates
+       connect to RabbitMQ and subscribe to favorite artist updates
        """
        try:
-            connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
-            channel = connection.channel()
+            self.connection = pika.BlockingConnection(pika.ConnectionParameters("localhost"))
+            self.channel = self.connection.channel()
 
-            channel.exchange_declare(exchange='artist_updates', exchange_type='topic')
+            # declare a topic exchange for artist notifications
+            self.channel.exchange_declare(exchange="artist_update", exchange_type="topic")
 
-            # create a unique queue for this client
-            result = channel.queue_declare(queue='', exclusive=True)
+            # create a temp queue for this client
+            result = self.channel.queue_declare(queue="", exclusive=True)
             queue_name = result.method.queue
 
-            # bind queue for each artist in list
-            for artist in self.fav_artist_list:
-                routing_key = f"artist.{artist.replace(' ', '_')}"
-                channel.queue_bind(exchange='artist_updates', queue=queue_name, routing_key=routing_key)
-                print(f"[CLIENT] subscribed to updates from {artist}")
+            # bind to the exchange for each fav artist
+            for artist in self.subscription:
+                routing_key = f"artist.{artist}"
+                self.channel.queue_bind(exchange="artist_update", queue=queue_name, routing_key=routing_key)
 
-            # when msg arrives, RabbitMQ uses this function to pass in output
+            print("\n[CLIENT] subscribed to updates from:", self.subscription, "\n")
+
+            # start consuming messages
             def callback(ch, method, properties, body):
-                print(f"[NOTIFICATION]: {body.decode()}")
+                print(f"\n🎵 [NOTIFICATION]: {body.decode('utf-8')}")
 
-            channel.basic_consume(queue=queue_name, on_message_callback=callback, auto_ack=True)
+            self.channel.basic_consume(queue=queue_name, on_message_callback=callback, auto_ack=True)
             print("[CLIENT] waiting for notifs...")
-            channel.start_consuming()
+            # run listener on a separate thread so the client can still send requests
+            threading.Thread(target=self.channel.start_consuming, daemon=True).start()
 
        except pika.exceptions.AMQPConnectionError:
             print("Error: Could not connect to RabbitMQ. Is it running?")
