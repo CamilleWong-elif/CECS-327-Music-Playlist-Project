@@ -11,7 +11,8 @@
      1. choco install erlang -y
      2. choco install rabbitmq -y
      3. net start RabbitMQ
-4. python main.py
+4. milestone 2: python main.py
+5. milestone 3: python main_milestone3.py
 
 ## Output after running:
 CECS-327-Music-Playlist-Project % python main.py
