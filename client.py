@@ -1,10 +1,15 @@
 import socket
 import threading
 import pika #RabbitMQ
+import json  # timestamp msgs
+from lamport_clock import LamportClock  # lamport clock
 
 class Client:
-    def __init__(self, server_host="localhost", server_port=5001, fav_artist_list = None, broker_host = "localhost"):
+    # M4: added node_id parameter
+    def __init__(self, node_id, server_host="localhost", server_port=5001, fav_artist_list = None, broker_host = "localhost"):
         #self.song = "song name"
+        self.node_id = node_id  # M4: unique client identifier
+        self.lamport_clock = LamportClock(node_id)  # M4: added lamport clock
         self.subscription = [] # list of fav artists client is subscribed to
         self.server_host = server_host
         self.server_port = server_port
@@ -17,13 +22,26 @@ class Client:
         """
         send a song request to the server using TCP sockets (IPC)
         """
+        # M4: increment clock and create msg with timestamp
+        timestamp = self.lamport_clock.increment()
+        message = json.dumps({
+            "song": input_song,
+            "timestamp": timestamp,
+            "node_id": self.node_id
+        })
+        print(f"[CLIENT {self.node_id}] Sending at T={timestamp}: {input_song}")
+        
         # create TCP pocket
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             try:
                 s.connect((self.server_host, self.server_port)) # connect to the server as localhost:5000
-                s.sendall(input_song.encode("utf-8")) # send the song name
+                s.sendall(message.encode("utf-8")) # send the song name
                 response = s.recv(1024).decode("utf-8") # wait for the server to respond
-                print(f"server response: {response}")
+                
+                # M4: update clock with server's timestamp
+                response_data = json.loads(response)
+                new_time = self.lamport_clock.update(response_data["timestamp"])
+                print(f"[CLIENT {self.node_id}] Response at T={new_time}: {response_data['message']}")
 
             except ConnectionRefusedError:
                 print("ERRROR - could not connect to the server")
@@ -50,14 +68,17 @@ class Client:
                 routing_key = f"artist.{artist}"
                 self.channel.queue_bind(exchange="artist_update", queue=queue_name, routing_key=routing_key)
 
-            print("\n[CLIENT] subscribed to updates from:", self.subscription, "\n")
+            print(f"\n[CLIENT {self.node_id}] subscribed to updates from:", self.subscription, "\n")
 
             # start consuming messages
+            # M4: update clock when receiving notifications
             def callback(ch, method, properties, body):
-                print(f"\n🎵 [NOTIFICATION]: {body.decode('utf-8')}")
+                notif = json.loads(body.decode('utf-8'))
+                new_time = self.lamport_clock.update(notif.get("lamport_timestamp", 0))
+                print(f"\n🎵 [NOTIFICATION CLIENT {self.node_id}] T={new_time}: {notif['message']}")
 
             self.channel.basic_consume(queue=queue_name, on_message_callback=callback, auto_ack=True)
-            print("[CLIENT] waiting for notifs...")
+            print(f"[CLIENT {self.node_id}] waiting for notifs...")
             # run listener on a separate thread so the client can still send requests
             threading.Thread(target=self.channel.start_consuming, daemon=True).start()
 
