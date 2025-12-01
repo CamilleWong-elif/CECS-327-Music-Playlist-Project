@@ -13,6 +13,10 @@
      3. net start RabbitMQ
 4. milestone 2: python main.py
 5. milestone 3: python main_milestone3.py
+6. milestone 4: 
+   - User menu mode: ```python main_milestone4.py CLIENT_1``` 
+     - note: Default is CLIENT_1. To login using a different user, use CLIENT_2 or CLIENT_3 
+   - Lamport demo: ```python main_milestone4.py --demo``` 
 
 ## Output after running:
 CECS-327-Music-Playlist-Project % python main.py
