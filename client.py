@@ -9,6 +9,7 @@ class Client:
     def __init__(self, node_id, server_host="localhost", server_port=5001, fav_artist_list = None, broker_host = "localhost"):
         #self.song = "song name"
         self.node_id = node_id  # M4: unique client identifier
+        self.playlist = []
         self.lamport_clock = LamportClock(node_id)  # M4: added lamport clock
         self.subscription = [] # list of fav artists client is subscribed to
         self.server_host = server_host
@@ -75,7 +76,7 @@ class Client:
             def callback(ch, method, properties, body):
                 notif = json.loads(body.decode('utf-8'))
                 new_time = self.lamport_clock.update(notif.get("lamport_timestamp", 0))
-                print(f"\n🎵 [NOTIFICATION CLIENT {self.node_id}] T={new_time}: {notif['message']}")
+                print(f"🎵 [NOTIFICATION {self.node_id}] T={new_time}: {notif['message']}\n")
 
             self.channel.basic_consume(queue=queue_name, on_message_callback=callback, auto_ack=True)
             print(f"[CLIENT {self.node_id}] waiting for notifs...")
@@ -86,6 +87,15 @@ class Client:
             print("Error: Could not connect to RabbitMQ. Is it running?")
        except Exception as e:
             print(f"RabbitMQ setup error: {e}")
+
+    def add_song(self, song_id):
+        """add a song to the client's playlist"""
+        self.playlist.append(song_id)
+
+    def remove_song(self, song_id):
+        """remove a song from the client's playlist"""
+        if song_id in self.playlist:
+            self.playlist.remove(song_id)
 
     def close(self):
         """close open connections"""
