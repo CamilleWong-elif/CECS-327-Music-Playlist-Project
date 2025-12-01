@@ -1,21 +1,190 @@
 from client import Client
 from server import Server
 from notifications import Notifications
+from music_player import MusicPlayer
 import pika  # for catching AMQP errors
 import threading
 import time
+import sys
 
-SONGS = [
-    "Cruel Summer - Taylor Swift",
-    "Box Breathing - Sorry Ghost",
-    "Lover - Taylor Swift",
-    "Golden - HUNTRX",
-    "To The Creatures - Sorry Ghost",
-    "Take Down - HUNTRX",
-    "How It's Done - HUNTRX",
-]
 
-def main():
+SONGS = {
+    "1": {"title": "Cruel Summer", "artist": "Taylor Swift", "file": "songs/cruel_summer.mp3"},
+    "2": {"title": "Box Breathing", "artist": "Sorry Ghost", "file": "songs/box_breathing.mp3"},
+    "3": {"title": "Lover", "artist": "Taylor Swift", "file": "songs/lover.mp3"},
+    "4": {"title": "Golden", "artist": "HUNTRX", "file": "songs/golden.mp3"},
+    "5": {"title": "To The Creatures", "artist": "Sorry Ghost", "file": "songs/to_the_creatures.mp3"},
+    "6": {"title": "Take Down", "artist": "HUNTRX", "file": "songs/take_down.mp3"},
+    "7": {"title": "How It's Done", "artist": "HUNTRX", "file": "songs/how_its_done.mp3"},
+}
+class MusicApp:
+    def __init__(self, client_id):
+        self.client_id = client_id
+        self.music_player = MusicPlayer()
+        self.server = None
+        self.client = None
+        # self.coordinator = None
+        
+    def display_menu(self):
+        print("\n" + "="*50)
+        print(f"🎵 MUSIC PLAYER - {self.client_id}")
+        print("="*50)
+        print("MUSIC PLAYBACK:")
+        print("1. Play a song")
+        print("1.1. Pause a song")
+        print("1.2. Resume a song")
+        print("1.3. Stop a song")
+
+        print("_"*50)
+        print("PLAYLIST MANAGEMENT:")
+        print("2. View my playlist")
+        print("2.1. Add song to playlist")
+        print("2.2. Remove song from playlist")
+
+        print("_"*50)
+        print("QUIT:")
+        print("3. Quit")
+        print("="*50)
+        
+    def display_songs(self):
+        print("\n📀 Available Songs:")
+        for key, song in SONGS.items():
+            in_playlist = "✓" if key in self.client.playlist else " "
+            print(f"[{in_playlist}] {key}. {song['title']} - {song['artist']}")
+        
+    def play_song(self):
+        self.display_songs()
+        choice = input("\nEnter song number: ").strip()
+        
+        song = SONGS[choice]
+        song_request = f"{song['title']} - {song['artist']}"
+            
+        # Send request to server via IPC (with Lamport timestamp)
+        if self.client:
+            self.client.song_request(song_request)
+        
+        # Play song
+        self.music_player.play_song(song['file'], song['title'], song['artist'])
+            
+
+    def add_to_playlist(self):
+        self.display_songs()
+        choice = input("\nEnter song number to add: ").strip()
+        song = SONGS[choice]
+        
+        self.client.add_song(choice)
+        print(f"✅ '{song['title']}' added to playlist!")
+            
+    def remove_from_playlist(self):
+        if not self.client.playlist:
+            print("\n⚠️  Your playlist is empty!")
+            return
+            
+        print("\n🎵 Your Playlist:")
+        for i, song_id in enumerate(self.client.playlist, 1):
+            song = SONGS[song_id]
+            print(f"{i}. {song['title']} - {song['artist']}")
+            
+        choice = input("\nEnter song number to remove: ").strip()
+        
+        if choice.isdigit() and 1 <= int(choice) <= len(self.client.playlist):
+            song_id = self.client.playlist[int(choice) - 1]
+            song = SONGS[song_id]
+            self.client.remove_song(song_id)
+            print(f"❌ '{song['title']}' removed from all playlists!")
+            
+            
+    def view_playlist(self):
+        if not self.client.playlist:
+            print("\n⚠️  Your playlist is empty!")
+            return
+            
+        print(f"\n🎵 {self.client_id}'s Playlist:")
+        print("-" * 50)
+        for i, song_id in enumerate(self.client.playlist, 1):
+            song = SONGS[song_id]
+            print(f"{i}. {song['title']} - {song['artist']}")
+        print("-" * 50)
+        print(f"Total songs: {len(self.client.playlist)}")
+        
+            
+    def initialize_services(self):
+        """Initialize server, coordinator, and client"""
+        # Start music server
+        self.server = Server(port=5001)
+        self.server.start()
+        time.sleep(0.5) # give server time to start
+
+        # Create client
+        if self.client_id == "CLIENT_1":
+            subscribed_artists = ["Taylor Swift", "Sorry Ghost"]
+        elif self.client_id == "CLIENT_2":
+            subscribed_artists = ["HUNTRX", "Taylor Swift"]
+        else:
+            subscribed_artists = ["Sorry Ghost"]
+        
+        # Use node_id for Lamport timestamps
+        self.client = Client(
+            node_id=self.client_id,  # Use node_id for Lamport compatibility
+            server_host="localhost",
+            server_port=5001,
+            fav_artist_list=subscribed_artists,
+        )
+        self.client.receive_notification(self.client.subscription)
+        
+        # Publish notifications to client 
+        try:
+            time.sleep(0.5)
+            notifications = Notifications("localhost")
+            print("\n[NOTIFICATIONS] Publishing artist updates...")
+            notifications.publish_artist_message("Taylor Swift", "New album 'Midnights' released!")
+            time.sleep(0.2)
+            notifications.publish_artist_message("Sorry Ghost", "New single 'Echo' out now!")
+            time.sleep(0.2)
+            notifications.publish_artist_message("HUNTRX", "World tour announced for 2025!")
+        except pika.exceptions.AMQPConnectionError:
+            pass
+            
+    def run(self):
+        print(f"\n🎵 Welcome to Distributed Music Player - {self.client_id}! 🎵")
+        print("Features: 2PC distributed transactions + Lamport timestamps")
+        self.initialize_services()
+        
+        while True:
+            self.display_menu()
+            choice = input("\nSelect option: ").strip()
+            
+            if choice == "1":
+                self.play_song()
+            elif choice == "1.1":
+                self.music_player.pause()
+            elif choice == "1.2":
+                self.music_player.resume()
+            elif choice == "1.3":
+                self.music_player.stop()
+        
+            elif choice == "2":
+                self.view_playlist()
+            elif choice == "2.1":
+                self.add_to_playlist()
+            elif choice == "2.2":
+                self.remove_from_playlist()
+
+            elif choice == "3":
+                print(f"\n👋 Goodbye from {self.client_id}!")
+                self.music_player.stop()
+                self.music_player.cleanup()
+                self.client.close()
+                if self.coordinator:
+                    self.coordinator.stop()
+                if self.server:
+                    self.server.stop()
+                break
+            else:
+                print("Invalid choice!")
+
+
+def run_lamport_demo():
     print("=" * 70)
     print("DISTRIBUTED MUSIC SYSTEM - LAMPORT TIMESTAMP DEMO")
     print("=" * 70)
@@ -82,20 +251,22 @@ def main():
     print("\nThree clients will request songs simultaneously.")
     print("Watch how Lamport timestamps establish causal ordering!\n")
     
-    def client_request(client, song, delay=0):
+    def client_request(client, song_id, delay=0):
         if delay > 0:
             time.sleep(delay)
-        client.song_request(song)
+        song = SONGS[song_id]
+        song_str = f"{song['title']} - {song['artist']}"
+        client.song_request(song_str)
     
     # create threads for concurrent requests
     # client 1 requests immediately
-    thread1 = threading.Thread(target=client_request, args=(client1, SONGS[0], 0))
+    thread1 = threading.Thread(target=client_request, args=(client1, "1", 0))
     
     # client 2 requests after small delay
-    thread2 = threading.Thread(target=client_request, args=(client2, SONGS[3], 0.05))
+    thread2 = threading.Thread(target=client_request, args=(client2, "4", 0.05))
     
     # client 3 requests after slightly longer delay
-    thread3 = threading.Thread(target=client_request, args=(client3, SONGS[4], 0.1))
+    thread3 = threading.Thread(target=client_request, args=(client3, "5", 0.1))
     
     # start all threads (simulating concurrent requests)
     print("Starting concurrent requests...\n")
@@ -115,9 +286,9 @@ def main():
     print("PHASE 3: SECOND ROUND OF REQUESTS (different causal order)")
     print("=" * 70 + "\n")
     
-    thread4 = threading.Thread(target=client_request, args=(client3, SONGS[1], 0))
-    thread5 = threading.Thread(target=client_request, args=(client1, SONGS[2], 0.02))
-    thread6 = threading.Thread(target=client_request, args=(client2, SONGS[5], 0.08))
+    thread4 = threading.Thread(target=client_request, args=(client3, "2", 0))
+    thread5 = threading.Thread(target=client_request, args=(client1, "3", 0.02))
+    thread6 = threading.Thread(target=client_request, args=(client2, "6", 0.08))
     
     thread4.start()
     thread5.start()
@@ -139,6 +310,17 @@ def main():
     print("4. Timestamps establish 'happened-before' relationships")
     print("\nNote: If two events have the same timestamp, node_id breaks the tie")
     print("for total ordering (not shown explicitly but implemented in code).\n")
+
+
+def main():    
+    # User picks to run the Lamport demo or menu 
+    if len(sys.argv) > 1 and sys.argv[1] == "--demo":
+        run_lamport_demo()
+    else:
+        # Menu options
+        client_id = sys.argv[1] if len(sys.argv) > 1 else "CLIENT_1"
+        app = MusicApp(client_id)
+        app.run()
 
 if __name__ == "__main__":
     main()
