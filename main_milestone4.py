@@ -73,7 +73,6 @@ class MusicApp:
         song = SONGS[choice]
         
         self.client.add_song(choice)
-        print(f"✅ '{song['title']}' added to playlist!")
             
     def remove_from_playlist(self):
         if not self.client.playlist:
@@ -90,9 +89,7 @@ class MusicApp:
         if choice.isdigit() and 1 <= int(choice) <= len(self.client.playlist):
             song_id = self.client.playlist[int(choice) - 1]
             song = SONGS[song_id]
-            self.client.remove_song(song_id)
-            print(f"✅ '{song['title']}' removed from all playlists!")
-            
+            self.client.remove_song(song_id)            
             
     def view_playlist(self):
         if not self.client.playlist:
