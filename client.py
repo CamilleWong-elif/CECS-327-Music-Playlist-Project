@@ -365,5 +365,4 @@ class Client:
 
     def close(self):
         """close open connections"""
-        if self.connection and not self.connection.is_closed:
-            self.connection.close()
+        self.connection = None
