@@ -1,5 +1,6 @@
 from client import Client
 from server import Server
+from coordinator_2pc import TwoPhaseCommitCoordinator
 from notifications import Notifications
 from music_player import MusicPlayer
 import pika  # for catching AMQP errors
@@ -23,7 +24,6 @@ class MusicApp:
         self.music_player = MusicPlayer()
         self.server = None
         self.client = None
-        # self.coordinator = None
         
     def display_menu(self):
         print("\n" + "="*50)
@@ -91,7 +91,7 @@ class MusicApp:
             song_id = self.client.playlist[int(choice) - 1]
             song = SONGS[song_id]
             self.client.remove_song(song_id)
-            print(f"❌ '{song['title']}' removed from all playlists!")
+            print(f"✅ '{song['title']}' removed from all playlists!")
             
             
     def view_playlist(self):
@@ -115,7 +115,12 @@ class MusicApp:
         self.server.start()
         time.sleep(0.5) # give server time to start
 
-        # Create client
+        # Start 2PC Coordinator
+        self.coordinator = TwoPhaseCommitCoordinator(host='localhost', port=5002)
+        self.coordinator.start()
+        time.sleep(0.5)  # give coordinator time to start
+        
+        # Create clients
         if self.client_id == "CLIENT_1":
             subscribed_artists = ["Taylor Swift", "Sorry Ghost"]
         elif self.client_id == "CLIENT_2":
@@ -129,6 +134,8 @@ class MusicApp:
             server_host="localhost",
             server_port=5001,
             fav_artist_list=subscribed_artists,
+            coordinator_host='localhost',
+            coordinator_port=5002
         )
         self.client.receive_notification(self.client.subscription)
         
@@ -147,7 +154,6 @@ class MusicApp:
             
     def run(self):
         print(f"\n🎵 Welcome to Distributed Music Player - {self.client_id}! 🎵")
-        print("Features: 2PC distributed transactions + Lamport timestamps")
         self.initialize_services()
         
         while True:
