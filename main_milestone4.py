@@ -110,17 +110,22 @@ class MusicApp:
             
     def initialize_services(self):
         """Initialize server, coordinator, and client"""
-        # Start music server
-        self.server = Server(port=5001)
-        self.server.start()
-        time.sleep(0.5) # give server time to start
-
-        # Start 2PC Coordinator
-        self.coordinator = TwoPhaseCommitCoordinator(host='localhost', port=5002)
-        self.coordinator.start()
-        time.sleep(0.5)  # give coordinator time to start
+        # Only CLIENT_1 starts the server and coordinator
+        if self.client_id == "CLIENT_1":
+            # Start music server
+            self.server = Server(port=5001)
+            self.server.start()
+            time.sleep(0.5)
+            
+            # Start 2PC coordinator
+            self.coordinator = TwoPhaseCommitCoordinator(port=5002)
+            self.coordinator.start()
+            time.sleep(0.5)  # Give coordinator time to start
+        else:
+            # Other clients just wait for server/coordinator to be ready
+            time.sleep(1.0)
         
-        # Create clients
+        # Create subscribe artist list based on client_id
         if self.client_id == "CLIENT_1":
             subscribed_artists = ["Taylor Swift", "Sorry Ghost"]
         elif self.client_id == "CLIENT_2":
